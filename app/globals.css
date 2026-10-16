@@ -1,0 +1,40 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0b10; color: #f2f2f5; font-family: system-ui, sans-serif; }
+
+/* ---- lyrics ---- */
+.lyrics { height: 100%; overflow-y: auto; scrollbar-width: none; padding: 0 6vw; font-size: clamp(1.6rem, 4.2vw, 3.6rem); }
+.lyrics::-webkit-scrollbar { display: none; }
+.line { padding: 0.35em 0; line-height: 1.25; scroll-margin-top: 22vh; transition: opacity .3s, transform .3s, color .3s; }
+.line.past { opacity: .25; }
+.line.upcoming { opacity: .7; }
+.line.current { opacity: 1; color: #ffd866; font-weight: 700; transform: scale(1.03); transform-origin: left center; }
+.lyrics-tail { height: 70vh; }
+
+/* ---- display page ---- */
+.display { position: fixed; inset: 0; background: #000; }
+.display .title { position: fixed; top: 1vh; right: 2vw; font-size: .9rem; opacity: .35; }
+.display .empty { height: 100%; display: grid; place-items: center; font-size: 2rem; opacity: .4; }
+
+/* ---- operator page ---- */
+.operator { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 1rem; height: 100vh; padding: 1rem; }
+.panel { background: #14141c; border: 1px solid #262633; border-radius: 12px; padding: 1rem; overflow-y: auto; }
+.panel h2 { margin: 0 0 .6rem; font-size: 1rem; opacity: .8; }
+.stack { display: flex; flex-direction: column; gap: .75rem; }
+.row { display: flex; gap: .5rem; flex-wrap: wrap; }
+button, select, input { font: inherit; padding: .6rem .8rem; border-radius: 8px; border: 1px solid #34344a; background: #1d1d29; color: inherit; }
+button { cursor: pointer; }
+button:hover:not(:disabled) { background: #26263a; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+button.primary { background: #3b6df0; border-color: #3b6df0; }
+button.danger { background: #c0392b; border-color: #c0392b; }
+.status { font-size: .85rem; opacity: .75; }
+.error { color: #ff7b7b; font-size: .9rem; }
+.transcript { min-height: 3.5rem; padding: .6rem; border-radius: 8px; background: #0e0e15; font-size: .95rem; }
+.transcript.interim { opacity: .6; font-style: italic; }
+.preview { height: 100%; background: #000; border-radius: 12px; overflow: hidden; }
+.preview .lyrics { font-size: 2rem; }
+.suggestion { text-align: left; }
+.small { font-size: .8rem; opacity: .6; }
+.center { min-height: 100vh; display: grid; place-items: center; text-align: center; }
+a { color: #8ab4ff; }
