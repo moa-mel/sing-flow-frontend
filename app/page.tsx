@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { FRONTEND_BASE_URL } from '@/lib/config';
 
 type SongItem = { id: number; title: string; author?: string | null };
 
@@ -30,23 +29,26 @@ export default function Home() {
 
   const id = encodeURIComponent(session.trim() || 'main');
 
-  useEffect(() => {
-    setLoading(true);
-    fetch(`${FRONTEND_BASE_URL}/songs`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error('Could not load songs');
-        return r.json();
-      })
-      .then((data: SongItem[]) => {
-        setSongs(Array.isArray(data) ? data : []);
-        setLoadError(null);
-      })
-      .catch(() => {
-        setSongs([]);
-        setLoadError('Could not load songs. Is the backend running?');
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+useEffect(() => {
+  setLoading(true);
+  fetch(`${API_BASE}/songs`)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`Could not load songs (${r.status})`);
+      return r.json();
+    })
+    .then((data: SongItem[]) => {
+      setSongs(Array.isArray(data) ? data : []);
+      setLoadError(null);
+    })
+    .catch((err) => {
+      console.error(err);
+      setSongs([]);
+      setLoadError('Could not load songs. Is the backend running?');
+    })
+    .finally(() => setLoading(false));
+}, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
