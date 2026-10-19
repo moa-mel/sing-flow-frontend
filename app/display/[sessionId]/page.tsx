@@ -10,7 +10,10 @@ export default function DisplayPage({
     <Suspense
       fallback={
         <div className="display">
-          <div className="empty">Loading…</div>
+          <div className="spinner-wrap">
+            <div className="spinner" aria-hidden />
+            <p className="spinner-label">Loading…</p>
+          </div>
         </div>
       }
     >
