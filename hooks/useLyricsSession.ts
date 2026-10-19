@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { FRONTEND_BASE_URL } from '@/lib/config';
 import type { Role, SearchHit, SessionStatePayload, Transcript } from '@/lib/types';
 
 /** Connects to the gateway, joins the session, and exposes live state. Re-joins automatically on reconnect. */
@@ -14,10 +13,12 @@ export function useLyricsSession(sessionId: string, role: Role, opts: { key?: st
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [suggestions, setSuggestions] = useState<SearchHit[]>([]);
 
+  const API_BASE = process.env.NEXT_PUBLIC_SOCKET_URL;
+
   useEffect(() => {
     if (!enabled || !sessionId) return;
 
-    const s = io(`${FRONTEND_BASE_URL}/lyrics`, { transports: ['websocket'] });
+    const s = io(`${API_BASE}/lyrics`, { transports: ['websocket'] });
     setSocket(s);
 
     s.on('connect', () => {

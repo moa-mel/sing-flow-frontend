@@ -40,7 +40,10 @@ function OperatorConsole() {
   useEffect(() => {
     if (!joined || !socket || !preselectSong || preselectDone.current) return;
     preselectDone.current = true;
-    socket.emit('song:select', { songId: preselectSong });
+    socket.emit('song:select', { 
+      songId: preselectSong,
+      lineIndex: 0,
+    });
   }, [joined, socket, preselectSong]);
 
   if (!connect) {
@@ -109,25 +112,13 @@ function OperatorConsole() {
         </div>
 
         <div className="control-group">
-          <label>Live Transcript</label>
-          <div
-            className={`transcript ${
-              transcript && !transcript.isFinal ? 'interim' : ''
-            }`}
-          >
-            {transcript?.text ?? (
-              <span className="placeholder">Awaiting voice input...</span>
-            )}
-          </div>
-        </div>
-
-        <div className="control-group">
           <label>Active Song</label>
           <select
             value={state.songId ?? ''}
             onChange={(e) =>
               send('song:select', {
                 songId: e.target.value || null,
+                lineIndex: 0, // always from the beginning
               })
             }
             disabled={!joined}
@@ -140,22 +131,6 @@ function OperatorConsole() {
             ))}
           </select>
 
-          <div className="row mt-2">
-            <button
-              className="ghost"
-              onClick={() => send('line:prev')}
-              disabled={!joined || !state.song}
-            >
-              ◀ Prev
-            </button>
-            <button
-              className="ghost"
-              onClick={() => send('line:next')}
-              disabled={!joined || !state.song}
-            >
-              Next ▶
-            </button>
-          </div>
         </div>
 
         {suggestions.length > 0 && (

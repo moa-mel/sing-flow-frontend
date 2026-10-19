@@ -630,3 +630,38 @@ button.ghost:hover:not(:disabled) {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Karaoke-style window: few lines, centered in the box */
+.lyrics-window {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* vertical center in the panel */
+  align-items: stretch;
+  padding: 0 6vw;
+  overflow: hidden;
+  font-size: clamp(1.4rem, 3.5vw, 2.8rem);
+}
+
+.lyrics-window .line {
+  padding: 0.35em 0;
+  line-height: 1.3;
+  text-align: center; /* or left if you prefer */
+  transition: opacity 0.25s, transform 0.25s, color 0.25s;
+}
+
+.lyrics-window .line.past {
+  opacity: 0.3;
+}
+
+.lyrics-window .line.upcoming {
+  opacity: 0.65;
+}
+
+.lyrics-window .line.current {
+  opacity: 1;
+  color: #ffd866;
+  font-weight: 700;
+  transform: scale(1.04);
+}
+
