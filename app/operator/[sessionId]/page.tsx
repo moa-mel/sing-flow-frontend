@@ -8,7 +8,12 @@ import { useMicStreamer } from '@/hooks/useMicStreamer';
 import { API_BASE_URL } from '@/lib/config';
 
 function OperatorConsole() {
-  const { sessionId } = useParams<{ sessionId: string }>();
+
+  const params = useParams();
+  const sessionId = Array.isArray(params.sessionId)
+    ? params.sessionId[0] ?? ''
+    : (params.sessionId ?? '');
+
   const searchParams = useSearchParams();
   const preselectSong = searchParams.get('song');
 
@@ -93,9 +98,8 @@ function OperatorConsole() {
         </div>
 
         <div
-          className={`transcript ${
-            transcript && !transcript.isFinal ? 'interim' : ''
-          }`}
+          className={`transcript ${transcript && !transcript.isFinal ? 'interim' : ''
+            }`}
         >
           {transcript?.text ?? (
             <span className="small">Heard text appears here…</span>
