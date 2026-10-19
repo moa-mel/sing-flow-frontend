@@ -1,75 +1,138 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import LyricsView from '@/components/LyricsView';
 import { useLyricsSession } from '@/hooks/useLyricsSession';
 import { useMicStreamer } from '@/hooks/useMicStreamer';
-import { FRONTEND_BASE_URL } from '@/lib/config';
+import { API_BASE_URL } from '@/lib/config';
 
-export default function OperatorPage() {
+function OperatorConsole() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const searchParams = useSearchParams();
+  const preselectSong = searchParams.get('song');
+
   const [key, setKey] = useState('');
   const [connect, setConnect] = useState(false);
-  const [songs, setSongs] = useState<{ id: string; title: string }[]>([]);
+  const [songs, setSongs] = useState<{ id: number; title: string }[]>([]);
+  const preselectDone = useRef(false);
 
-  const { socket, joined, error, state, transcript, suggestions } = useLyricsSession(sessionId, 'operator', {
-    key,
-    enabled: connect,
-  });
+  const { socket, joined, error, state, transcript, suggestions } =
+    useLyricsSession(sessionId, 'operator', {
+      key,
+      enabled: connect,
+    });
   const mic = useMicStreamer(socket, joined);
 
   useEffect(() => {
-    fetch(`${FRONTEND_BASE_URL}/songs`).then((r) => r.json()).then(setSongs).catch(() => setSongs([]));
+    fetch(`${API_BASE_URL}/songs`)
+      .then((r) => r.json())
+      .then((data) => setSongs(Array.isArray(data) ? data : []))
+      .catch(() => setSongs([]));
   }, []);
+
+  // Apply ?song= once after join
+  useEffect(() => {
+    if (!joined || !socket || !preselectSong || preselectDone.current) return;
+    preselectDone.current = true;
+    socket.emit('song:select', { songId: preselectSong });
+  }, [joined, socket, preselectSong]);
 
   if (!connect) {
     return (
       <main className="center">
         <div className="stack" style={{ width: 'min(380px, 90vw)' }}>
           <h2>Operator · {sessionId}</h2>
-          <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Operator key" />
-          <button className="primary" onClick={() => setConnect(true)}>Connect</button>
+          {preselectSong && (
+            <p className="small">
+              Song will load after connect (id: {preselectSong})
+            </p>
+          )}
+          <input
+            type="password"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder="Operator key"
+          />
+          <button className="primary" onClick={() => setConnect(true)}>
+            Connect
+          </button>
         </div>
       </main>
     );
   }
 
-  const send = (event: string, payload?: unknown) => socket?.emit(event, payload);
+  const send = (event: string, payload?: unknown) =>
+    socket?.emit(event, payload);
 
   return (
     <div className="operator">
       <div className="panel stack">
         <h2>Operator · {sessionId}</h2>
-        <div className="status">{joined ? '● Connected' : '○ Connecting…'}</div>
-        {(error || mic.error) && <div className="error">{error ?? mic.error}</div>}
+        <div className="status">
+          {joined ? '● Connected' : '○ Connecting…'}
+        </div>
+        {(error || mic.error) && (
+          <div className="error">{error ?? mic.error}</div>
+        )}
 
         <div className="row">
           {mic.active ? (
-            <button className="danger" onClick={mic.stop}>Stop listening</button>
+            <button className="danger" onClick={mic.stop}>
+              Stop listening
+            </button>
           ) : (
-            <button className="primary" onClick={mic.start} disabled={!joined}>Start listening</button>
+            <button
+              className="primary"
+              onClick={mic.start}
+              disabled={!joined}
+            >
+              Start listening
+            </button>
           )}
         </div>
 
-        <div className={`transcript ${transcript && !transcript.isFinal ? 'interim' : ''}`}>
-          {transcript?.text ?? <span className="small">Heard text appears here…</span>}
+        <div
+          className={`transcript ${
+            transcript && !transcript.isFinal ? 'interim' : ''
+          }`}
+        >
+          {transcript?.text ?? (
+            <span className="small">Heard text appears here…</span>
+          )}
         </div>
 
         <h2>Song</h2>
         <select
           value={state.songId ?? ''}
-          onChange={(e) => send('song:select', { songId: e.target.value || null })}
+          onChange={(e) =>
+            send('song:select', {
+              songId: e.target.value || null,
+            })
+          }
           disabled={!joined}
         >
           <option value="">— none (auto-detect by voice) —</option>
           {songs.map((s) => (
-            <option key={s.id} value={s.id}>{s.title}</option>
+            <option key={s.id} value={s.id}>
+              {s.title}
+            </option>
           ))}
         </select>
 
         <div className="row">
-          <button onClick={() => send('line:prev')} disabled={!joined || !state.song}>◀ Prev line</button>
-          <button onClick={() => send('line:next')} disabled={!joined || !state.song}>Next line ▶</button>
+          <button
+            onClick={() => send('line:prev')}
+            disabled={!joined || !state.song}
+          >
+            ◀ Prev line
+          </button>
+          <button
+            onClick={() => send('line:next')}
+            disabled={!joined || !state.song}
+          >
+            Next line ▶
+          </button>
         </div>
 
         {suggestions.length > 0 && (
@@ -79,26 +142,63 @@ export default function OperatorPage() {
               <button
                 key={h.songId}
                 className="suggestion"
-                onClick={() => send('song:select', { songId: h.songId, lineIndex: h.lineIndex + 1 })}
+                onClick={() =>
+                  send('song:select', {
+                    songId: h.songId,
+                    lineIndex: h.lineIndex + 1,
+                  })
+                }
               >
-                {h.title} <span className="small">({Math.round(h.score * 100)}%)</span>
+                {h.title}{' '}
+                <span className="small">
+                  ({Math.round(h.score * 100)}%)
+                </span>
               </button>
             ))}
           </>
         )}
 
         <div className="small">
-          Projector: <a href={`/display/${sessionId}`} target="_blank" rel="noreferrer">/display/{sessionId}</a>
+          Projector:{' '}
+          <a
+            href={`/display/${sessionId}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            /display/{sessionId}
+          </a>
         </div>
       </div>
 
       <div className="preview">
         {state.song ? (
-          <LyricsView lines={state.song.lines} index={state.lineIndex} />
+          <LyricsView
+            lines={state.song.lines}
+            index={state.lineIndex}
+          />
         ) : (
-          <div className="display empty" style={{ position: 'static' }}>No song selected</div>
+          <div
+            className="display empty"
+            style={{ position: 'static' }}
+          >
+            No song selected
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+export default function OperatorPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="center">
+          <p className="small">Loading operator…</p>
+        </main>
+      }
+    >
+      <OperatorConsole />
+    </Suspense>
   );
 }
