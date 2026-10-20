@@ -35,7 +35,7 @@ export default function DisplayClient({ sessionId }: { sessionId: string }) {
   return (
     <div className="display">
       <div className="title">{state.song.title}</div>
-      <LyricsView lines={state.song.lines} index={state.lineIndex} />
+      <LyricsView key={state.songId} lines={state.song.lines} index={state.lineIndex} />
     </div>
   );
 }
