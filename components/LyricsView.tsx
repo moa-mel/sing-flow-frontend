@@ -1,12 +1,12 @@
+
 'use client';
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 
 interface Props {
   lines: string[];
   index: number;
   windowSize?: number;
-  /** Row (0-based) the current line sits on once scrolling begins. */
   currentRow?: number;
   fontSize?: string;
 }
@@ -18,77 +18,64 @@ export default function LyricsView({
   currentRow = 1,
   fontSize,
 }: Props) {
-  const safeIndex = Math.max(0, Math.min(index, Math.max(0, lines.length - 1)));
+  const safeIndex = Math.max(
+    0,
+    Math.min(index, Math.max(0, lines.length - 1)),
+  );
 
-  const start = useMemo(() => {
-    const s = Math.max(0, safeIndex - currentRow);
-    return Math.min(s, Math.max(0, lines.length - windowSize));
-  }, [safeIndex, currentRow, windowSize, lines.length]);
+  // Keep the active lyric on the third row.
+  // At the start, never scroll above the first lyric.
+  const start = Math.max(
+    0,
+    Math.min(
+      safeIndex - currentRow,
+      Math.max(0, lines.length - windowSize),
+    ),
+  );
 
-  const inner = useRef<HTMLDivElement>(null);
-  const rows = useRef<(HTMLDivElement | null)[]>([]);
-  const [box, setBox] = useState<{ offset: number; height?: number }>({ offset: 0 });
-  const [ready, setReady] = useState(false);
+  const visibleLines = useMemo(
+    () => lines.slice(start, start + windowSize),
+    [lines, start, windowSize],
+  );
 
-  useLayoutEffect(() => {
-    const measure = () => {
-      const first = rows.current[start];
-      const last = rows.current[Math.min(start + windowSize, lines.length) - 1];
-      if (!first || !last) return;
-
-      const offset = first.offsetTop;
-      const height = last.offsetTop + last.offsetHeight - first.offsetTop;
-
-      setBox((b) => (b.offset === offset && b.height === height ? b : { offset, height }));
-    };
-
-    measure();
-    setReady(true);
-
-    const ro = new ResizeObserver(measure);
-    if (inner.current) ro.observe(inner.current);
-    void document.fonts?.ready.then(measure);
-    window.addEventListener('resize', measure);
-
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, [start, windowSize, lines, fontSize]);
+  useEffect(() => {
+    console.debug('[LyricsView]', {
+      activeLine: safeIndex + 1,
+      firstVisibleLine: start + 1,
+      visibleLineCount: visibleLines.length,
+    });
+  }, [safeIndex, start, visibleLines.length]);
 
   return (
     <div
       className="lyrics lyrics-window"
       style={{
         ...(fontSize ? { fontSize } : {}),
-        height: box.height,
         overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5em',
       }}
     >
-      <div
-        ref={inner}
-        style={{
-          position: 'relative',
-          transform: `translateY(${-box.offset}px)`,
-          transition: ready ? 'transform 0.3s ease' : 'none',
-        }}
-      >
-        {lines.map((line, i) => {
-          const kind =
-            i === safeIndex ? 'current' : i < safeIndex ? 'past' : 'upcoming';
-          return (
-            <div
-              key={i}
-              ref={(el) => {
-                rows.current[i] = el;
-              }}
-              className={`line ${kind}`}
-            >
-              {line}
-            </div>
-          );
-        })}
-      </div>
+      {visibleLines.map((line, visibleIndex) => {
+        const lineIndex = start + visibleIndex;
+
+        const kind =
+          lineIndex === safeIndex
+            ? 'current'
+            : lineIndex < safeIndex
+              ? 'past'
+              : 'upcoming';
+
+        return (
+          <div
+            key={`${lineIndex}-${line}`}
+            className={`line ${kind}`}
+          >
+            {line}
+          </div>
+        );
+      })}
     </div>
   );
 }
