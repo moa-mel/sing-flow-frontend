@@ -31,10 +31,11 @@ export function useMicStreamer(socket: Socket | null, joined: boolean) {
         audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
       const ctx = new AudioContext();
+      if (ctx.state === 'suspended') await ctx.resume();
       await ctx.audioWorklet.addModule('/pcm-worklet.js');
       const src = ctx.createMediaStreamSource(stream);
       const node = new AudioWorkletNode(ctx, 'pcm-processor');
-      node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => socket.volatile.emit('audio:chunk', e.data);
+      node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => socket.emit('audio:chunk', e.data);
       src.connect(node); // not connected to destination: no feedback
       graph.current = { stream, ctx, node, src };
       setActive(true);

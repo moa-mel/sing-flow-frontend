@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 interface Props {
   lines: string[];
   index: number;
   windowSize?: number;
-  /** Row (0-based) the current line sits on once scrolling begins. Default 1. */
+  /** Row (0-based) the current line sits on once scrolling begins. */
   currentRow?: number;
   fontSize?: string;
 }
@@ -21,26 +21,42 @@ export default function LyricsView({
   const safeIndex = Math.max(0, Math.min(index, Math.max(0, lines.length - 1)));
 
   const start = useMemo(() => {
-    // Scroll as soon as current passes row `currentRow`
-    let s = Math.max(0, safeIndex - currentRow);
-    // Don't scroll past the end
-    s = Math.min(s, Math.max(0, lines.length - windowSize));
-    return s;
+    const s = Math.max(0, safeIndex - currentRow);
+    return Math.min(s, Math.max(0, lines.length - windowSize));
   }, [safeIndex, currentRow, windowSize, lines.length]);
+
+  const rows = useRef<(HTMLDivElement | null)[]>([]);
+  const [box, setBox] = useState<{ offset: number; height?: number }>({ offset: 0 });
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const first = rows.current[start];
+      const last = rows.current[Math.min(start + windowSize, lines.length) - 1];
+      if (!first || !last) return;
+      setBox({
+        offset: first.offsetTop,
+        height: last.offsetTop + last.offsetHeight - first.offsetTop,
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [start, windowSize, lines, fontSize]);
 
   return (
     <div
       className="lyrics lyrics-window"
       style={{
         ...(fontSize ? { fontSize } : {}),
-        height: `calc(${windowSize} * 1.5em)`,
+        height: box.height,
         overflow: 'hidden',
       }}
     >
       <div
         style={{
-          transform: `translateY(calc(${start} * -1.5em))`,
-          transition: 'transform 0.35s ease',
+          position: 'relative',
+          transform: `translateY(${-box.offset}px)`,
+          transition: 'transform 0.3s ease',
         }}
       >
         {lines.map((line, i) => {
@@ -49,14 +65,10 @@ export default function LyricsView({
           return (
             <div
               key={i}
-              className={`line ${kind}`}
-              style={{
-                height: '1.5em',
-                lineHeight: '1.5em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+              ref={(el) => {
+                rows.current[i] = el;
               }}
+              className={`line ${kind}`}
             >
               {line}
             </div>
