@@ -25,22 +25,35 @@ export default function LyricsView({
     return Math.min(s, Math.max(0, lines.length - windowSize));
   }, [safeIndex, currentRow, windowSize, lines.length]);
 
+  const inner = useRef<HTMLDivElement>(null);
   const rows = useRef<(HTMLDivElement | null)[]>([]);
   const [box, setBox] = useState<{ offset: number; height?: number }>({ offset: 0 });
+  const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
     const measure = () => {
       const first = rows.current[start];
       const last = rows.current[Math.min(start + windowSize, lines.length) - 1];
       if (!first || !last) return;
-      setBox({
-        offset: first.offsetTop,
-        height: last.offsetTop + last.offsetHeight - first.offsetTop,
-      });
+
+      const offset = first.offsetTop;
+      const height = last.offsetTop + last.offsetHeight - first.offsetTop;
+
+      setBox((b) => (b.offset === offset && b.height === height ? b : { offset, height }));
     };
+
     measure();
+    setReady(true);
+
+    const ro = new ResizeObserver(measure);
+    if (inner.current) ro.observe(inner.current);
+    void document.fonts?.ready.then(measure);
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, [start, windowSize, lines, fontSize]);
 
   return (
@@ -53,10 +66,11 @@ export default function LyricsView({
       }}
     >
       <div
+        ref={inner}
         style={{
           position: 'relative',
           transform: `translateY(${-box.offset}px)`,
-          transition: 'transform 0.3s ease',
+          transition: ready ? 'transform 0.3s ease' : 'none',
         }}
       >
         {lines.map((line, i) => {
