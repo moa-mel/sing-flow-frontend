@@ -19,17 +19,13 @@ export default function DisplayClient({ sessionId }: { sessionId: string }) {
   const preselectSong = searchParams.get('song');
   const preselectDone = useRef(false);
 
-  const { socket, state, joined } = useLyricsSession(sessionId, 'display');
+  const { state, joined } = useLyricsSession(sessionId, 'display');
 
   // Load the song from ?song= once we're joined
   useEffect(() => {
-    if (!joined || !socket || !preselectSong || preselectDone.current) return;
+    if (!joined || !preselectSong || preselectDone.current) return;
     preselectDone.current = true;
-    socket.emit('song:select', {
-      songId: preselectSong,
-      lineIndex: 0,
-    });
-  }, [joined, socket, preselectSong]);
+  }, [joined, preselectSong]);
 
   if (!sessionId) {
     return (

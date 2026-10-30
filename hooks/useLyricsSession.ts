@@ -4,12 +4,20 @@ import { io, Socket } from 'socket.io-client';
 import type { Role, SearchHit, SessionStatePayload, Transcript } from '@/lib/types';
 
 /** Connects to the gateway, joins the session, and exposes live state. Re-joins automatically on reconnect. */
-export function useLyricsSession(sessionId: string, role: Role, opts: { key?: string; enabled?: boolean } = {}) {
+export function useLyricsSession(
+  sessionId: string,
+  role: Role,
+  opts: { key?: string; enabled?: boolean } = {},
+) {
   const { key, enabled = true } = opts;
   const [socket, setSocket] = useState<Socket | null>(null);
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [state, setState] = useState<SessionStatePayload>({ songId: null, lineIndex: 0, song: null });
+  const [state, setState] = useState<SessionStatePayload>({
+    songId: null,
+    lineIndex: 0,
+    song: null,
+  });
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [suggestions, setSuggestions] = useState<SearchHit[]>([]);
 
@@ -22,7 +30,6 @@ export function useLyricsSession(sessionId: string, role: Role, opts: { key?: st
 
     const s = io(`${API_BASE}/lyrics`, {
       transports: ['polling', 'websocket'], // temporarily allow polling
-      // transports: ['websocket'],         // original – keep for comparison later
     });
 
     setSocket(s);
@@ -73,4 +80,7 @@ export function useLyricsSession(sessionId: string, role: Role, opts: { key?: st
       setJoined(false);
     };
   }, [sessionId, role, key, enabled]);
+
+  // ← THIS return must be outside the useEffect
+  return { socket, joined, error, state, transcript, suggestions };
 }
