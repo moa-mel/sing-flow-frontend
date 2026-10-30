@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 type SongItem = { id: number; title: string; author?: string | null };
 
@@ -19,6 +20,7 @@ interface SpeechRec extends EventTarget {
 type SpeechRecCtor = new () => SpeechRec;
 
 export default function Home() {
+  const router = useRouter();
   const [session, setSession] = useState('main');
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [query, setQuery] = useState('');
@@ -95,10 +97,7 @@ useEffect(() => {
     rec.start();
   }, []);
 
-  const operatorHref = selectedId
-    ? `/operator/${id}?song=${selectedId}`
-    : `/operator/${id}`;
-
+  
   return (
     <div className="landing">
       <header className="hero">
@@ -121,11 +120,6 @@ useEffect(() => {
           </div>
 
           <div className="cta-row">
-            <Link href={operatorHref}>
-              <button type="button" className="primary">
-                Open operator
-              </button>
-            </Link>
             <Link href={`/display/${id}`}>
               <button type="button" className="ghost">
                 Open projector
@@ -172,10 +166,11 @@ useEffect(() => {
                 <button
                   key={s.id}
                   type="button"
-                  className={`song-card ${selectedId === s.id ? 'selected' : ''}`}
-                  onClick={() =>
-                    setSelectedId(selectedId === s.id ? null : s.id)
-                  }
+                  className="song-card"
+                  onClick={() => {
+                    // Go straight to lyrics view with this song
+                    router.push(`/display/${id}?song=${s.id}`);
+                  }}
                 >
                   <span className="song-title">{s.title}</span>
                   {s.author && <span className="song-author">{s.author}</span>}
@@ -184,29 +179,6 @@ useEffect(() => {
             )}
           </div>
 
-          {selected && (
-            <div className="selected-actions">
-              <p>
-                Selected: <strong>{selected.title}</strong>
-                {selected.author ? ` · ${selected.author}` : ''}
-              </p>
-              <div className="cta-row">
-                <Link href={`/operator/${id}?song=${selected.id}`}>
-                  <button type="button" className="primary">
-                    Control this song
-                  </button>
-                </Link>
-                <Link href={`/display/${id}`}>
-                  <button type="button" className="ghost">
-                    Open projector
-                  </button>
-                </Link>
-              </div>
-              <p className="hint">
-                In the operator, press <strong>Start listening</strong> so the AI follows the choir and auto-scrolls.
-              </p>
-            </div>
-          )}
         </div>
       </section>
     </div>

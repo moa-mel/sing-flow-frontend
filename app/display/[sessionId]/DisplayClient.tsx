@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import LyricsView from '@/components/LyricsView';
 import { useLyricsSession } from '@/hooks/useLyricsSession';
 
@@ -13,7 +15,21 @@ function Spinner({ label }: { label?: string }) {
 }
 
 export default function DisplayClient({ sessionId }: { sessionId: string }) {
-  const { state, joined } = useLyricsSession(sessionId, 'display');
+  const searchParams = useSearchParams();
+  const preselectSong = searchParams.get('song');
+  const preselectDone = useRef(false);
+
+  const { socket, state, joined } = useLyricsSession(sessionId, 'display');
+
+  // Load the song from ?song= once we're joined
+  useEffect(() => {
+    if (!joined || !socket || !preselectSong || preselectDone.current) return;
+    preselectDone.current = true;
+    socket.emit('song:select', {
+      songId: preselectSong,
+      lineIndex: 0,
+    });
+  }, [joined, socket, preselectSong]);
 
   if (!sessionId) {
     return (
@@ -23,11 +39,18 @@ export default function DisplayClient({ sessionId }: { sessionId: string }) {
     );
   }
 
-  // Connecting or waiting for a song
   if (!joined || !state.song) {
     return (
       <div className="display">
-        <Spinner label={!joined ? 'Connecting…' : 'Waiting for a song…'} />
+        <Spinner
+          label={
+            !joined
+              ? 'Connecting…'
+              : preselectSong
+                ? 'Loading song…'
+                : 'Waiting for a song…'
+          }
+        />
       </div>
     );
   }
@@ -35,7 +58,11 @@ export default function DisplayClient({ sessionId }: { sessionId: string }) {
   return (
     <div className="display">
       <div className="title">{state.song.title}</div>
-      <LyricsView key={state.songId} lines={state.song.lines} index={state.lineIndex} />
+      <LyricsView
+        key={state.songId}
+        lines={state.song.lines}
+        index={state.lineIndex}
+      />
     </div>
   );
 }
