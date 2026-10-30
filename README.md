@@ -14,4 +14,4 @@ pnpm dev
 bun dev
 ```
 
-https://sing-flow.onrender.com/docs/#
+https://sing-flow-zug6.onrender.com/docs/#

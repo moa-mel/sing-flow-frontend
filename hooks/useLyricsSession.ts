@@ -18,30 +18,59 @@ export function useLyricsSession(sessionId: string, role: Role, opts: { key?: st
   useEffect(() => {
     if (!enabled || !sessionId) return;
 
-    const s = io(`${API_BASE}/lyrics`, { transports: ['websocket'] });
+    console.log('[Socket] Connecting to', `${API_BASE}/lyrics`, 'sessionId=', sessionId);
+
+    const s = io(`${API_BASE}/lyrics`, {
+      transports: ['polling', 'websocket'], // temporarily allow polling
+      // transports: ['websocket'],         // original – keep for comparison later
+    });
+
     setSocket(s);
 
     s.on('connect', () => {
+      console.log('[Socket] CONNECTED, id=', s.id);
       s.emit('session:join', { sessionId, role, key }, (ack: { ok: boolean; error?: string }) => {
+        console.log('[Socket] session:join ack →', ack);
         setJoined(ack.ok);
         setError(ack.ok ? null : ack.error ?? 'join failed');
       });
     });
-    s.on('disconnect', () => setJoined(false));
-    s.on('state', (p: SessionStatePayload) => {
-      setState(p);
-      setSuggestions([]); // a new line/song makes old suggestions stale
+
+    s.on('connect_error', (err) => {
+      console.error('[Socket] connect_error →', err.message, err);
     });
-    s.on('transcript', (t: Transcript) => setTranscript(t));
-    s.on('search:suggestions', (h: SearchHit[]) => setSuggestions(h));
-    s.on('stt:error', (e: { message: string }) => setError(`Speech-to-text: ${e.message}`));
+
+    s.on('disconnect', (reason) => {
+      console.warn('[Socket] DISCONNECTED →', reason);
+      setJoined(false);
+    });
+
+    s.on('state', (p: SessionStatePayload) => {
+      console.log('[Socket] received state →', p);
+      setState(p);
+      setSuggestions([]);
+    });
+
+    s.on('transcript', (t: Transcript) => {
+      console.log('[Socket] transcript →', t);
+      setTranscript(t);
+    });
+
+    s.on('search:suggestions', (h: SearchHit[]) => {
+      console.log('[Socket] suggestions →', h);
+      setSuggestions(h);
+    });
+
+    s.on('stt:error', (e: { message: string }) => {
+      console.error('[Socket] stt:error →', e);
+      setError(`Speech-to-text: ${e.message}`);
+    });
 
     return () => {
+      console.log('[Socket] cleaning up');
       s.disconnect();
       setSocket(null);
       setJoined(false);
     };
   }, [sessionId, role, key, enabled]);
-
-  return { socket, joined, error, state, transcript, suggestions };
 }
