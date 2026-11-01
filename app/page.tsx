@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -9,6 +9,20 @@ type SongItem = {
   id: number;
   title: string;
   author?: string | null;
+};
+
+type Pagination = {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+type SongsResponse = {
+  data: SongItem[];
+  pagination: Pagination;
 };
 
 interface SpeechRec extends EventTarget {
@@ -25,12 +39,24 @@ interface SpeechRec extends EventTarget {
 
 type SpeechRecCtor = new () => SpeechRec;
 
+const PAGE_SIZE = 20;
+
 export default function Home() {
   const router = useRouter();
 
   const [session, setSession] = useState('main');
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<Pagination>({
+    total: 0,
+    page: 1,
+    limit: PAGE_SIZE,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+
   const [listening, setListening] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,37 +64,73 @@ export default function Home() {
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
   const id = encodeURIComponent(session.trim() || 'main');
 
+  // Fetch songs whenever the page or search query changes.
   useEffect(() => {
-    setLoading(true);
+    const controller = new AbortController();
 
-    fetch(`${API_BASE}/songs`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Could not load songs (${r.status})`);
-        return r.json();
-      })
-      .then((data: SongItem[]) => {
-        setSongs(Array.isArray(data) ? data : []);
+    const fetchSongs = async () => {
+      try {
+        setLoading(true);
         setLoadError(null);
-      })
-      .catch((err) => {
-        console.error(err);
+
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(PAGE_SIZE),
+        });
+
+        if (query.trim()) {
+          params.set('title', query.trim());
+        }
+
+        const response = await fetch(
+          `${API_BASE}/songs?${params.toString()}`,
+          { signal: controller.signal },
+        );
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+
+          console.error('Songs API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorBody,
+            url: response.url,
+          });
+
+          throw new Error(
+            `Could not load songs (${response.status}): ${errorBody}`,
+          );
+        }
+
+        const result: SongsResponse = await response.json();
+
+        setSongs(Array.isArray(result.data) ? result.data : []);
+        setPagination(result.pagination);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return;
+        }
+
+        console.error(error);
         setSongs([]);
         setLoadError('Could not load songs. Is the backend running?');
-      })
-      .finally(() => setLoading(false));
-  }, []);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    fetchSongs();
 
-    if (!q) return songs;
+    return () => controller.abort();
+  }, [API_BASE, page, query]);
 
-    return songs.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        (s.author?.toLowerCase().includes(q) ?? false),
-    );
-  }, [songs, query]);
+  // Search and reset pagination.
+  const handleSearch = (value: string) => {
+    setQuery(value);
+    setPage(1);
+  };
 
   const startVoiceSearch = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -95,7 +157,7 @@ export default function Home() {
 
     rec.onresult = (e) => {
       const transcript = e.results[0]?.[0]?.transcript ?? '';
-      setQuery(transcript);
+      handleSearch(transcript);
       setListening(false);
     };
 
@@ -104,6 +166,15 @@ export default function Home() {
 
     rec.start();
   }, []);
+
+  const startIndex = pagination.total === 0
+    ? 0
+    : (page - 1) * PAGE_SIZE + 1;
+
+  const endIndex = Math.min(
+    page * PAGE_SIZE,
+    pagination.total,
+  );
 
   return (
     <main className="landing">
@@ -197,7 +268,9 @@ export default function Home() {
           </div>
 
           <div className="library-count">
-            <strong>{songs.length.toString().padStart(2, '0')}</strong>
+            <strong>
+              {pagination.total.toString().padStart(2, '0')}
+            </strong>
             <span>SONGS AVAILABLE</span>
           </div>
         </div>
@@ -210,7 +283,7 @@ export default function Home() {
             <input
               type="search"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleSearch(e.target.value)}
               placeholder="Search by song title or artist..."
               aria-label="Search songs"
             />
@@ -219,7 +292,7 @@ export default function Home() {
               <button
                 type="button"
                 className="clear-search"
-                onClick={() => setQuery('')}
+                onClick={() => handleSearch('')}
                 aria-label="Clear search"
               >
                 ×
@@ -260,24 +333,24 @@ export default function Home() {
             </div>
 
             <div className="song-list">
-              {filtered.length === 0 ? (
+              {songs.length === 0 ? (
                 <div className="empty-songs">
                   <span className="empty-icon">♫</span>
 
                   <h3>
-                    {songs.length === 0
+                    {pagination.total === 0
                       ? 'Your library is empty'
                       : 'No songs found'}
                   </h3>
 
                   <p>
-                    {songs.length === 0
+                    {pagination.total === 0
                       ? 'Songs will appear here once they are added.'
                       : 'Try another search or use voice search.'}
                   </p>
                 </div>
               ) : (
-                filtered.map((song, index) => (
+                songs.map((song, index) => (
                   <button
                     key={song.id}
                     type="button"
@@ -288,7 +361,7 @@ export default function Home() {
                   >
                     <div className="song-track">
                       <span className="track-number">
-                        {(index + 1).toString().padStart(2, '0')}
+                        {(startIndex + index).toString().padStart(2, '0')}
                       </span>
 
                       <span className="track-symbol">♫</span>
@@ -310,9 +383,35 @@ export default function Home() {
               )}
             </div>
 
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+              <div className="song-pagination">
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={!pagination.hasPreviousPage || loading}
+                >
+                  ← Previous
+                </button>
+
+                <span>
+                  Page <strong>{pagination.page}</strong> of{' '}
+                  <strong>{pagination.totalPages}</strong>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setPage((prev) => prev + 1)}
+                  disabled={!pagination.hasNextPage || loading}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+
             <div className="library-footer">
               <span>
-                Showing {filtered.length} of {songs.length} songs
+                Showing {startIndex}–{endIndex} of {pagination.total} songs
               </span>
 
               <span>

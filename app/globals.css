@@ -1403,4 +1403,41 @@
 }
 
 
+.song-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px 0;
+  border-top: 1px solid var(--border-color, #e5e5e5);
+}
+
+.song-pagination button {
+  padding: 10px 16px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.song-pagination button:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.song-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.song-pagination span {
+  font-size: 13px;
+  color: #777;
+}
+
+.song-pagination strong {
+  color: inherit;
+}
+
 
