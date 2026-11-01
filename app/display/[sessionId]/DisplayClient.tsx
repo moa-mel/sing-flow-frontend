@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -9,8 +10,24 @@ import { useMicStreamer } from '@/hooks/useMicStreamer';
 type SongItem = {
   id: number;
   title: string;
-  author?: string;
+  author?: string | null;
 };
+
+type Pagination = {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+type SongsResponse = {
+  data: SongItem[];
+  pagination: Pagination;
+};
+
+const PAGE_SIZE = 20;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
@@ -36,6 +53,17 @@ export default function DisplayClient({
 
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+
+  const [pagination, setPagination] = useState<Pagination>({
+    total: 0,
+    page: 1,
+    limit: PAGE_SIZE,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+
   const [songsLoading, setSongsLoading] = useState(true);
   const [searchError, setSearchError] = useState('');
   const [selectionError, setSelectionError] = useState('');
@@ -51,7 +79,7 @@ export default function DisplayClient({
     joined,
   );
 
-  // Fetch songs from the backend.
+  // Fetch songs using the same backend search as app/page.tsx.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -60,26 +88,50 @@ export default function DisplayClient({
         setSongsLoading(true);
         setSearchError('');
 
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(PAGE_SIZE),
+        });
+
+        if (searchQuery.trim()) {
+          params.set('title', searchQuery.trim());
+        }
+
         const response = await fetch(
-          `${API_BASE.replace(/\/$/, '')}/songs`,
+          `${API_BASE.replace(/\/$/, '')}/songs?${params.toString()}`,
           { signal: controller.signal },
         );
 
         if (!response.ok) {
-          throw new Error('Unable to load songs.');
+          const errorBody = await response.text();
+
+          console.error('Songs API error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorBody,
+            url: response.url,
+          });
+
+          throw new Error(
+            `Could not load songs (${response.status}): ${errorBody}`,
+          );
         }
 
-        const data = await response.json();
+        const result: SongsResponse = await response.json();
 
-        const songList = Array.isArray(data)
-          ? data
-          : data.songs ?? data.results ?? data.data ?? [];
+        setSongs(
+          Array.isArray(result.data) ? result.data : [],
+        );
 
-        setSongs(Array.isArray(songList) ? songList : []);
+        setPagination(result.pagination);
       } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          setSearchError(err.message || 'Failed to load songs.');
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
         }
+
+        console.error(err);
+        setSongs([]);
+        setSearchError('Could not load songs. Is the backend running?');
       } finally {
         if (!controller.signal.aborted) {
           setSongsLoading(false);
@@ -90,7 +142,14 @@ export default function DisplayClient({
     fetchSongs();
 
     return () => controller.abort();
-  }, []);
+  }, [page, searchQuery]);
+
+  // Search and reset pagination.
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    setPage(1);
+    setSelectionError('');
+  };
 
   // Select a song from the URL once the socket connects.
   useEffect(() => {
@@ -122,18 +181,6 @@ export default function DisplayClient({
     );
   }, [joined, socket, preselectSong]);
 
-  // Search by song title or artist.
-  const filteredSongs = songs.filter((song) => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) return false;
-
-    return (
-      song.title?.toLowerCase().includes(query) ||
-      song.author?.toLowerCase().includes(query)
-    );
-  });
-
   // Select a song through the existing WebSocket event.
   const handleSongSelect = (song: SongItem) => {
     if (!socket || !joined || isSelectingSong) return;
@@ -158,6 +205,7 @@ export default function DisplayClient({
         }
 
         setSearchQuery('');
+        setPage(1);
       },
     );
   };
@@ -217,10 +265,7 @@ export default function DisplayClient({
             type="search"
             placeholder="Search songs..."
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setSelectionError('');
-            }}
+            onChange={(e) => handleSearch(e.target.value)}
             aria-label="Search songs"
           />
 
@@ -228,7 +273,7 @@ export default function DisplayClient({
             <button
               type="button"
               className="topbar-search-clear"
-              onClick={() => setSearchQuery('')}
+              onClick={() => handleSearch('')}
               aria-label="Clear search"
             >
               ×
@@ -241,25 +286,58 @@ export default function DisplayClient({
                 <p>Loading songs...</p>
               ) : searchError ? (
                 <p className="search-error">{searchError}</p>
-              ) : filteredSongs.length > 0 ? (
-                filteredSongs.map((song) => (
-                  <button
-                    type="button"
-                    key={song.id}
-                    onClick={() => handleSongSelect(song)}
-                    disabled={isSelectingSong}
-                  >
-                    <span className="search-result-details">
-                      <strong>{song.title}</strong>
+              ) : songs.length > 0 ? (
+                <>
+                  {songs.map((song) => (
+                    <button
+                      type="button"
+                      key={song.id}
+                      onClick={() => handleSongSelect(song)}
+                      disabled={isSelectingSong}
+                    >
+                      <span className="search-result-details">
+                        <strong>{song.title}</strong>
 
-                      {song.author && (
-                        <small>{song.author}</small>
-                      )}
-                    </span>
+                        {song.author && (
+                          <small>{song.author}</small>
+                        )}
+                      </span>
 
-                    <span>→</span>
-                  </button>
-                ))
+                      <span>→</span>
+                    </button>
+                  ))}
+
+                  {/* Search result pagination */}
+                  {pagination.totalPages > 1 && (
+                    <div className="search-pagination">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPage((prev) => Math.max(1, prev - 1))
+                        }
+                        disabled={
+                          !pagination.hasPreviousPage || songsLoading
+                        }
+                      >
+                        ←
+                      </button>
+
+                      <span>
+                        {pagination.page} / {pagination.totalPages}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setPage((prev) => prev + 1)}
+                        disabled={
+                          !pagination.hasNextPage || songsLoading
+                        }
+                      >
+                        →
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p>No songs found.</p>
               )}
@@ -269,9 +347,7 @@ export default function DisplayClient({
               )}
 
               {selectionError && (
-                <p className="search-error">
-                  {selectionError}
-                </p>
+                <p className="search-error">{selectionError}</p>
               )}
             </div>
           )}
